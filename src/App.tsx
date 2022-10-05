@@ -34,12 +34,14 @@ const initialValues = {
   penghasilanSebelum: '',
   alasanPengajuan: 0,
   alasanLainya: '',
+  fileKTP: '',
+  fileKK: '',
 }
 
 const validationSchema = object({
   nama: string().required('Nama harus diisi'),
   nik: number().required('NIK harus diisi').min(10000000000, 'NIK Tidak valid'),
-  umur: number().moreThan(0, 'Pastikan umur anda benar').required('Masukan umur anda'),
+  umur: number().moreThan(24, 'Umur minimal 25 tahun').required('Masukan umur anda'),
   jenisKelamin: number()
     .moreThan(0, 'Masukan jenis kelamin anda')
     .required('Masukan jenis kelamin anda'),
@@ -56,13 +58,33 @@ const validationSchema = object({
   penghasilanSetelah: number()
     .moreThan(0, 'Pastikan data anda benar')
     .required('Masukan penghasilan anda'),
-  alasanPengajuan: number().moreThan(-2, 'alasan tidak valid').required(),
+  alasanPengajuan: number().moreThan(0, 'alasan tidak valid').required(),
+  fileKTP: string().required('Upload Foto KTP'),
+  fileKK: string().required('Upload Foto KK'),
 })
 
 interface Options {
   key: string
   value: string | number
   label: string
+}
+
+interface ResultPayload {
+  nama: string
+  nik: number
+  noKK: number
+  fileKTP: string
+  fileKK: string
+  umur: number
+  jenisKelamin: string
+  provinsi: string
+  wilayah: string
+  kecamatan: string
+  desa: string
+  alamat: string
+  penghasilanSebelum: number
+  penghasilanSetelah: number
+  alasanPengajuan: string
 }
 
 const JENIS_KELAMIN: Options[] = [
@@ -74,7 +96,7 @@ const ALASAN_PENGAJUAN: Options[] = [
   { key: 'AP-1', value: 1, label: 'Kehilangan pekerjaan' },
   { key: 'AP-2', value: 2, label: 'Kepala keluarga terdampak atau korban Covid-19' },
   { key: 'AP-3', value: 3, label: 'Tergolong fakir/miskin semenjak sebelum Covid-19' },
-  { key: 'AP-0', value: -1, label: 'Lainnya' },
+  { key: 'AP-0', value: 99, label: 'Lainnya' },
 ]
 function App() {
   const formKTPRef = useRef<HTMLInputElement>(null)
@@ -84,13 +106,10 @@ function App() {
   const [districts, setDistricts] = useState<Options[]>([])
   const [villages, setVillages] = useState<Options[]>([])
   const [fileKTP, setFileKTP] = useState<FileList | null>(null)
+  const [isFileKTPOverSized, setIsFileKTPOverSized] = useState<boolean>(false)
   const [fileKK, setFileKK] = useState<FileList | null>(null)
-
-  const formik = useFormik({
-    initialValues,
-    validationSchema,
-    onSubmit: (values) => console.log(values),
-  })
+  const [isFileKKOverSized, setIsFileKKOverSized] = useState<boolean>(false)
+  const [isTnCAgree, setIsTnCAgree] = useState<boolean>(false)
 
   useEffect(() => {
     getData()
@@ -130,6 +149,49 @@ function App() {
     }
   }
 
+  const handleSubmit = async (values: any) => {
+    try {
+      const provinceString = provinces.find(
+        (item) => Number(item.value) === Number(values.provinsi),
+      )?.label
+      const regencyString = regencies.find(
+        (item) => Number(item.value) === Number(values.wilayah),
+      )?.label
+      const districtString = districts.find(
+        (item) => Number(item.value) === Number(values.kecamatan),
+      )?.label
+      const villageString = villages.find(
+        (item) => Number(item.value) === Number(values.desa),
+      )?.label
+      const genderString = JENIS_KELAMIN.find(
+        (item) => Number(item.value) === Number(values.jenisKelamin),
+      )?.label
+      const alasanString = Number(values.alasanPengajuan) !== 99 ? ALASAN_PENGAJUAN.find(
+        (item) => Number(item.value) === Number(values.alasanPengajuan),
+      )?.label : values.alasanLainya
+
+      const formattedValues: ResultPayload = {
+        ...values,
+        provinsi: provinceString,
+        wilayah: regencyString,
+        kecamatan: districtString,
+        desa: villageString,
+        jenisKelamin: genderString,
+        alasanPengajuan: alasanString,
+      }
+      console.log(formattedValues);
+      
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  const formik = useFormik({
+    initialValues,
+    validationSchema,
+    onSubmit: handleSubmit,
+  })
+
   return (
     <Container
       sx={{
@@ -154,7 +216,7 @@ function App() {
       <Stack p={5} mb={5} width={{ xs: '90%', md: '60%' }} component={Paper}>
         <Box mb={3}>
           <Alert severity='info'>
-            Harap megisi data dengan jujur dan benar. Segala macam bentuk kesalahan pengisian data
+            Harap mengisi data dengan jujur dan benar. Segala macam bentuk kesalahan pengisian data
             adalah sepenuhnya menjadi tanggung jawab pemohon
           </Alert>
         </Box>
@@ -212,21 +274,35 @@ function App() {
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
-                borderRadius: 1,
                 paddingY: 5,
+                marginBottom: 3,
+                borderRadius: 1,
                 border: 1,
                 borderWidth: 2,
-                borderColor: '#38a9f4',
+                borderColor:
+                  formik.touched.fileKTP && Boolean(formik.errors.fileKTP) ? '#d32f2f' : '#38a9f4',
               }}
             >
               {!fileKTP ? (
-                <Button
-                  aria-label={'add'}
-                  component='span'
-                  onClick={() => formKTPRef.current?.click()}
-                >
-                  Upload
-                </Button>
+                <Stack direction={'column'}>
+                  <Button
+                    aria-label={'add'}
+                    component='span'
+                    onClick={() => formKTPRef.current?.click()}
+                  >
+                    Upload
+                  </Button>
+                  {isFileKTPOverSized && (
+                    <Typography variant='caption' color='red'>
+                      File KTP tidak boleh melebihi 2MB
+                    </Typography>
+                  )}
+                  {formik.touched.fileKTP && Boolean(formik.errors.fileKTP) && (
+                    <Typography variant='caption' color='red'>
+                      {formik.errors.fileKTP}
+                    </Typography>
+                  )}
+                </Stack>
               ) : (
                 <Stack direction={'row'} alignItems={'center'} justifyContent={'center'}>
                   <Button
@@ -246,14 +322,21 @@ function App() {
               <input
                 ref={formKTPRef}
                 type='file'
-                id='fike-ktp'
-                name='file-ktp'
                 style={{ display: 'none' }}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   const files = e.target?.files
-                  setFileKTP(files)
+                  const fileSize = files?.[0].size || 0
+                  if (fileSize > 2000000) {
+                    setIsFileKTPOverSized(true)
+                  } else {
+                    formik.setFieldValue('fileKTP', files?.[0]?.name)
+                    setIsFileKTPOverSized(false)
+                    setFileKTP(files)
+                  }
                 }}
+                accept='.jpg, .jpeg, .png, .bmp'
               />
+              <input name='fileKTP' type='hidden' value={formik.values.fileKTP} />
             </Box>
           </Box>
           <Box>
@@ -267,17 +350,30 @@ function App() {
                 paddingY: 5,
                 border: 1,
                 borderWidth: 2,
-                borderColor: '#38a9f4',
+                borderColor:
+                  formik.touched.fileKK && Boolean(formik.errors.fileKK) ? '#d32f2f' : '#38a9f4',
               }}
             >
               {!fileKK ? (
-                <Button
-                  aria-label={'add'}
-                  component='span'
-                  onClick={() => formKKRef.current?.click()}
-                >
-                  Upload
-                </Button>
+                <Stack direction={'column'}>
+                  <Button
+                    aria-label={'add'}
+                    component='span'
+                    onClick={() => formKKRef.current?.click()}
+                  >
+                    Upload
+                  </Button>
+                  {isFileKKOverSized && (
+                    <Typography variant='caption' color='red'>
+                      File KK tidak boleh melebihi 2MB
+                    </Typography>
+                  )}
+                  {formik.touched.fileKK && Boolean(formik.errors.fileKK) && (
+                    <Typography variant='caption' color='red'>
+                      {formik.errors.fileKK}
+                    </Typography>
+                  )}
+                </Stack>
               ) : (
                 <Stack direction={'row'} alignItems={'center'} justifyContent={'center'}>
                   <Button
@@ -286,6 +382,7 @@ function App() {
                       setFileKK(null)
                       if (formKKRef.current) {
                         formKKRef.current.value = ''
+                        formik.setFieldValue('fileKK', '')
                       }
                     }}
                   >
@@ -297,14 +394,22 @@ function App() {
               <input
                 ref={formKKRef}
                 type='file'
-                id='fike-kk'
-                name='file-kk'
                 style={{ display: 'none' }}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   const files = e.target?.files
-                  setFileKK(files)
+                  const fileSize = files?.[0].size || 0
+
+                  if (fileSize > 2000000) {
+                    setIsFileKKOverSized(true)
+                  } else {
+                    formik.setFieldValue('fileKK', files?.[0]?.name)
+                    setIsFileKKOverSized(false)
+                    setFileKK(files)
+                  }
                 }}
+                accept='.jpg, .jpeg, .png, .bmp'
               />
+              <input name='fileKK' type='hidden' value={formik.values.fileKK} />
             </Box>
           </Box>
           <Box mb={2} mt={5}>
@@ -441,7 +546,7 @@ function App() {
             error={formik.touched.alasanPengajuan && Boolean(formik.errors.alasanPengajuan)}
             helperText={formik.touched.alasanPengajuan && formik.errors.alasanPengajuan}
           />
-          {formik.values.alasanPengajuan === -1 && (
+          {formik.values.alasanPengajuan === 99 && (
             <TextField
               fullWidth
               label='alasan lainya'
@@ -454,12 +559,23 @@ function App() {
           <input name='alasanLainya' value={formik.values.alasanPengajuan} type={'hidden'} />
           <FormGroup>
             <FormControlLabel
-              control={<Checkbox onChange={(e) => console.log(e.target.checked)} />}
-              label='Saya menyatakan bahwa data yang diisikan adalah benar dan siap mempertanggungjawabkan apabila ditemukan ketidaksesuaian dalam data tersebut.'
-              sx={{display:'flex',justifyContent:'flex-start', alignItems:'flex-start', marginTop:5}}
+              control={<Checkbox onChange={(e) => setIsTnCAgree(!isTnCAgree)} value={isTnCAgree} />}
+              label='* Saya menyatakan bahwa data yang diisikan adalah benar dan siap mempertanggungjawabkan apabila ditemukan ketidaksesuaian dalam data tersebut.'
+              sx={{
+                display: 'flex',
+                justifyContent: 'flex-start',
+                alignItems: 'flex-start',
+                marginTop: 5,
+              }}
             />
           </FormGroup>
-          <Button type='submit' variant='contained' fullWidth sx={{ marginTop: 5 }}>
+          <Button
+            type='submit'
+            variant='contained'
+            fullWidth
+            sx={{ marginTop: 5 }}
+            disabled={!isTnCAgree}
+          >
             KIRIM PENGAJUAN
           </Button>
         </form>
